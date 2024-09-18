@@ -20,7 +20,7 @@ export class TransformInterceptor<T>
   constructor(private reflector: Reflector) {}
   intercept(
     context: ExecutionContext,
-    next: CallHandler
+    next: CallHandler,
   ): Observable<Response<T>> {
     return next.handle().pipe(
       map((data) => ({
@@ -29,7 +29,7 @@ export class TransformInterceptor<T>
           this.reflector.get<string>(RESPONSE_MESSAGE, context.getHandler()) ||
           '',
         data: data,
-      }))
+      })),
     );
   }
 }
