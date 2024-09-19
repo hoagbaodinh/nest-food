@@ -1,3 +1,4 @@
+import { ChangePassDto } from './../../auth/dto/create-auth.dto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -151,5 +152,79 @@ export class UsersService {
     } else {
       throw new BadRequestException('Mã kich hoạt không đúng hoặc đã hết hạn');
     }
+  }
+
+  async handleReactive(email: string) {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+    if (user?.isActive) {
+      throw new BadRequestException('Tài khoản đã được kích hoạt');
+    }
+    const codeId = uuidv4();
+
+    // update codeID
+    await user.updateOne({
+      codeId,
+      codeExpired: dayjs().add(5, 'minutes'),
+    });
+
+    //send Email
+    this.mailerService.sendMail({
+      to: user.email,
+      subject: "Activation Code for OH'Kraft",
+      template: 'register',
+      context: {
+        name: user.name ?? user.email,
+        activationCode: codeId,
+      },
+    });
+
+    return { _id: user._id };
+  }
+  async handleRetryPassword(email: string) {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+    const codeId = uuidv4();
+
+    // update codeID
+    await user.updateOne({
+      codeId,
+      codeExpired: dayjs().add(5, 'minutes'),
+    });
+
+    //send Email
+    this.mailerService.sendMail({
+      to: user.email,
+      subject: "New Password Code for OH'Kraft",
+      template: 'register',
+      context: {
+        name: user.name ?? user.email,
+        activationCode: codeId,
+      },
+    });
+
+    return { _id: user._id };
+  }
+
+  async handleChangePassword(changePassDto: ChangePassDto) {
+    const user = await this.userModel.findOne({ _id: changePassDto._id });
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+    const isBeforeCheck = dayjs().isBefore(dayjs(user.codeExpired));
+
+    if (user.codeId !== changePassDto.code || !isBeforeCheck) {
+      throw new BadRequestException('Code không hợp lệ hoặc đã hết hạn!');
+    }
+    const hashPassword = await hashPasswordHelper(changePassDto.password);
+    await user.updateOne({
+      password: hashPassword,
+    });
+
+    return { _id: user._id };
   }
 }
